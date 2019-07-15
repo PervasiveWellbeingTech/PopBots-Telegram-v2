@@ -2,6 +2,7 @@ from glob import glob
 from os.path import join
 import yaml
 import utils
+import random
 
 
 class ShallowBot:
@@ -15,8 +16,8 @@ class ShallowBot:
         """
         with open(path) as f:
             from_yaml =  yaml.safe_load(f)
-            self.name = from_yaml['name']
-            self.id = from_yaml['id']
+            self.name = from_yaml.get('name', '')
+            self.id = from_yaml.get('id', None)
             self.states = from_yaml['states']
 
         self.defaults = {}
@@ -42,17 +43,24 @@ class ShallowBot:
             Responses (list) -- list of all responses
             new_bot_state (str) -- new state of the user
         """
-        if user_state == None:
+        if user_state == None: #if user state is unknown
             new_state = 'bot_opening' 
         else:
-            prev_bot_state = user_state
+            prev_bot_state = user_state 
             new_state = self.get_next(prev_bot_state, query)
 
-
         if new_state:
-            return self.states[new_state]['response'], new_state
+            response = []
+
+            #if there are multiple versions, select one at random.
+            for res in self.states[new_state]['response']:
+                if isinstance(res, list):
+                    res = random.choice(res)
+                response.append(res)
+
+            return new_state, response, self.states[new_state].get('buttons', None)
         else:
-            return [], None
+            return None,[], None
 
 
 
@@ -104,7 +112,7 @@ class ShallowBot:
             (boolean) -- if keyword is found.
         """
         input_str = input_str.lower()
-        return any([str(each) in str(input_str) for each in word_list])
+        return any([str(each) in str(input_str).split() for each in word_list])
 
 
     def replace_entities(self, responses, user_id, bot_id):

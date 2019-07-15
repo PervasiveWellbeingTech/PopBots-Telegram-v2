@@ -12,6 +12,7 @@ Created by Nick Tantivasadakarn.
 """
 
 import random
+import time
 from collections import defaultdict
 from os import system
 from pymongo import MongoClient
@@ -33,13 +34,14 @@ class StateHandler():
 
     """
 
-    def __init__(self, bot_folder): #, reply_dict, **kwargs):
+    def __init__(self, bot_folder, db_name= 'TelegramPopBots'): #, reply_dict, **kwargs):
 
         #initialize bot responses and parameters
         self.reply_dict = []
 
         #initialize database
-        self.db = MongoClient().textbot_telegram
+        self.db = MongoClient()[db_name]
+        self.db.startup_log.insert_one({'start_up_time': time.time()})
         self.central_bot_list = all_shallow_bots('./Intro_bots')
         self.bot_list = all_shallow_bots(bot_folder)
 
@@ -48,7 +50,7 @@ class StateHandler():
         self.id2state = defaultdict(lambda:None) #dictionary that links the user id to states
         self.id2name, self.id2parameters, self.subj_ids = self.load_parameters(self.db.user_history)
 
-    def get_response(self, user_id, user_input):
+    def get_response(self, user_id, query):
         """
         Gets the response from the bot given the query. It will make a call to the 
         'get_response' function within the bots.
@@ -60,22 +62,39 @@ class StateHandler():
         if not bot:
             bot = self.id2bot[user_id] = self.recommend_bot()
         prev_state = self.id2state[user_id]
-        response, new_state = bot.get_response(user_id, user_input, prev_state)
+        new_state, response, buttons = bot.get_response(user_id, query, prev_state)
         
-
-
         if new_state:
             self.id2state[user_id] = new_state
-            #handle_bot_commands(user_id, user_input):
-            return response
-    
-        #If bot is finished return to the central bot.
-        else: 
+            #handle_bot_commands(user_id, query):
+            self.log_response(user_id, query, bot.name, bot.id, new_state, response)
+            return response, buttons
+        else: #If bot is finished return to the central bot.
             self.id2bot[user_id] = self.central_bot_list[0]
             self.id2state[user_id] = new_state
-            return self.get_response(user_id, user_input)
+            return self.get_response(user_id, query)
 
-    def handle_bot_commands(self, user_id, user_input):
+    def log_response(self, user_id, query, bot_name, bot_id, bot_state, response):
+        """
+        Logs the response to the database
+
+        Parameter:
+            response(list) -- list of responses
+        """
+        
+        new_entry = {
+                'bot_id': bot_id,
+                'bot_name': bot_name,
+                'bot_state':bot_state,
+                'query': query,
+                'response': response,
+                'time': time.time()
+            }
+        self.db.user_history.update_one({'user_id':user_id},
+                                {"$push":{'user_history': new_entry}}
+                            )
+
+    def handle_bot_commands(self, user_id, query):
         """
         Handles commands of the bot in a certain state
         """
@@ -115,8 +134,9 @@ class StateHandler():
 
 
 if __name__ == '__main__':
-    sh = StateHandler('./shallow_bots')
+    sh = StateHandler('./example_bots')
     print('###')
-    sh.id2bot[1111] = sh.recommend_bot()
-    sh.id2state[1111] = 'bot_opening'
+    # sh.id2bot[1111] = sh.recommend_bot()
+    # sh.id2state[1111] = 'bot_opening'
     print(sh.get_response(1111, 'test'))
+    print(sh.get_response(1111, 'yes'))
