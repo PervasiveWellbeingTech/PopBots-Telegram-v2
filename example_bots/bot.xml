@@ -1,0 +1,9 @@
+<bot>
+	<if cond="flavor == 'vanilla'">
+    	<prompt> You ordered vanilla. </prompt>
+	<elseif cond="flavor == 'chocolate'" />
+	    <prompt> You ordered chocolate. </prompt>
+	<else />
+	    <prompt> You didn't order vanilla or chocolate. </prompt>
+	</if>
+</bot>
